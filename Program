@@ -1,0 +1,321 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using System.Runtime.InteropServices;
+using FireSharp.Config;
+using FireSharp.Response;
+using FireSharp.Interfaces;
+
+namespace FinalTextGame
+{
+    public partial class Form1 : Form
+    {
+
+        public string currentUser = null;
+        public string currentMessage = null;
+        public string displayMessage = null;
+        public string secretWord = null;
+        public Form1()
+        {
+            InitializeComponent();
+        }
+
+        IFirebaseConfig ifc = new FirebaseConfig()
+        {
+            AuthSecret = "ktjqDxpJptHgyzE3bUd2BwgkLidbcvJcQJsyB4f6",
+            BasePath = "https://multiplayer-text-game.firebaseio.com/"
+        };
+
+        IFirebaseClient client;
+
+        public void Form1_Load(object sender, EventArgs e)
+        {
+            try
+            {
+                client = new FireSharp.FirebaseClient(ifc);
+            }
+            catch
+            {
+                MessageBox.Show("Error");
+            }
+            Setup();
+        }
+
+
+
+        public string GetUserInput()
+        {
+            string text = Console.ReadLine();
+            Commands(text);
+            return text;
+        }
+
+        public void Commands(string text)
+        {
+            if(text.StartsWith("/") == false)
+            {
+                return;
+            }
+            if(text == "/create account")
+            {
+                Console.WriteLine("Enter Preferred Username:");
+                string _username = Console.ReadLine();
+                Console.WriteLine("Enter Email");
+                string _email = Console.ReadLine();
+                Console.WriteLine("Enter Password");
+                string _password = Console.ReadLine();
+
+                Account act = new Account()
+                {
+                    username = _username,
+                    email = _email,
+                    password = _password
+                };
+
+                SendAccount("Account/" + act.username, act);
+                Console.WriteLine("Account Created Successfully");
+                GetUserInput();
+            }
+            if (text == "/login")
+            {
+                Console.WriteLine("Enter Username:");
+                string _username = Console.ReadLine();
+                Console.WriteLine("Enter Password:");
+                string _password = Console.ReadLine();
+                try
+                {
+                    var res = client.Get(@"Account/" + _username);
+                    Account act = res.ResultAs<Account>();
+
+                    if (act.username == null)
+                    {
+                        Console.WriteLine("Wrong Username or Password");
+                        GetUserInput();
+                    }
+
+                    if (act.username != _username)
+                    {
+                        Console.WriteLine("Wrong Username or Password");
+                        GetUserInput();
+                    }
+                    else
+                    {
+                        currentUser = act.username;
+                        Console.WriteLine("Logged in as: " + currentUser);
+                        GetUserInput();
+                    }
+                }
+                catch
+                {
+                    Console.WriteLine("Wrong Username or Password");
+                    GetUserInput();
+                }
+            }
+            if (text == "/help")
+            {
+                Console.WriteLine("\"/help\"");
+                Console.WriteLine("\"/login\"");
+                Console.WriteLine("\"/create account\"");
+                Console.WriteLine("\"/logout\"");
+                Console.WriteLine("\"/mail\"");
+                Console.WriteLine("\"/check mail\"");
+                Console.WriteLine("\"/word game\"");
+
+                GetUserInput();
+            }
+            if (text == "/logout")
+            {
+                currentUser = null;
+                Console.WriteLine("Logged out successfully");
+                GetUserInput();
+            }
+            if (text == "/mail")
+            {
+                
+                if(currentUser == null)
+                {
+                    Console.WriteLine("Login in first.");
+                    GetUserInput();
+                }
+                else
+                { 
+                    Console.WriteLine("Enter Recipiant: ");
+                    string rec = Console.ReadLine();
+                    Console.WriteLine("Enter Message: ");
+                    string sub = Console.ReadLine();
+                    
+
+                    // Check to see if receiver exists
+                    try
+                    {
+                        var res = client.Get("Accounts/"+ rec);
+                        Account act = res.ResultAs<Account>();
+                    }
+                    catch
+                    {
+                        Console.WriteLine("Error sending message");
+                        GetUserInput();
+                    }
+
+                    Message msg = new Message()
+                    {
+                        sender = currentUser,
+                        receiver = rec,
+                        text = sub
+                    };
+
+                    SendMessage("GameData/" + rec + "/Mail/", msg);
+
+                    Console.WriteLine("Mail Sent");
+
+                    GetUserInput();
+                    
+                }
+            }
+            if (text == "/check mail")
+            {
+                if (currentUser != null)
+                {
+                    var res = client.Get("GameData/" + currentUser + "/Mail/");
+                    Message msg = res.ResultAs<Message>();
+                    Console.WriteLine("Your Mail:");
+                    Console.WriteLine(msg.sender + ": " + msg.text);
+                    GetUserInput();
+                }
+                GetUserInput();
+            }
+            if (text == "/word game")
+            {
+                if (currentUser != null)
+                {
+                    WordGuessGame();
+                }
+                else
+                {
+                    Console.WriteLine("I know your excited to play Liams game, but please log in first");
+                }
+            }
+            
+        }
+
+        public void Setup()
+        {
+            Console.ForegroundColor = ConsoleColor.Green;
+            
+            Console.WriteLine("Welcome! To login type \"/login\", to create an account type \"/create account\", type \"/help\" for help");
+            GetUserInput();
+        }
+
+        public void SendAccount(string location, Account act)
+        {
+            var set = client.Set(location, act);
+        }
+
+        public void SendMessage(string location, Message msg)
+        {
+            var set = client.Set(location, msg);
+        }
+
+        public void GetMessage()
+        {
+            
+        }
+
+        public void SendWord(string location, Word word)
+        {
+            var set = client.Set(location, word);
+        }
+
+        public void WordGuessGame()
+        {
+            Console.WriteLine("Type \"/guesser\" to be the guesser, or tpye \"/picker\" to pick to word");
+            string text = Console.ReadLine();
+
+            
+            if (text == "/picker")
+            {
+                Console.WriteLine("Come up with a word:");
+                secretWord = Console.ReadLine();
+                Console.WriteLine("Come up with a hint;");
+                string hint = Console.ReadLine();
+
+                Word word = new Word()
+                {
+                    chooser = currentUser,
+                    word = secretWord,
+                    hint = hint
+                };
+
+                SendWord("GameData/WordGuessingGame/", word);
+
+                GetUserInput();
+            }
+            else
+            {
+                if (text == "/guesser")
+                {
+                    var res = client.Get("GameData/WordGuessingGame/");
+                    Word wrd = res.ResultAs<Word>();
+                    secretWord = wrd.word;
+                    Console.WriteLine("Hint: " + wrd.hint);
+
+                    for (int i = 1; i < 20; i++)
+                    {
+                        Console.WriteLine("Guess " + i + ": ");
+                        string guess = Console.ReadLine();
+
+                        if (guess == secretWord)
+                        {
+                            Console.WriteLine("You Guessed " + wrd.chooser + "'s word!");
+                            GetUserInput();
+
+                        }
+                        else
+                        {
+                            Console.WriteLine("Try again");
+                        }
+                        
+                    }
+                    Console.WriteLine("Out of guesses!");
+                    GetUserInput();
+                }
+            }
+
+            
+
+        }
+
+
+
+
+    }
+
+    public class Account
+    {
+        public string username { get; set; }
+        public string email { get; set; }
+        public string password { get; set; }
+    }
+
+    public class Message
+    {
+        public string sender { get; set; }
+        public string receiver { get; set; }
+        public string text { get; set; }
+    }
+
+    public class Word
+    {
+        public string chooser { get; set; }
+        public string word { get; set; }
+        public string hint { get; set; }
+    }
+
+    
+}
